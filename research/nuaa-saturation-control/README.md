@@ -12,11 +12,18 @@ on the 36 existing checkpoints, without new training and without reading the tes
 pull request before the run. The revision of 14 November 2026 adds them to `NOTE.md`: the exact estimator (section 2),
 the baseline tolerances with their sources and the stop rule (section 4), conclusions limited in both directions, 2×2
 table included (section 4). It also adds the runner, its configuration, its tests and its mutation check. This revision
-is pushed before the run: at this commit no checkpoint has been loaded and no inference has been run; only the cards,
-the stored dev scores and the file hashes of the parent run were read, to measure what the tolerances rest on
-(`NOTE.md`, section 4), and `check-inputs` (no TensorFlow, no model) was run on the private inputs
-(`test_logs/check_inputs_bnrecal.txt`). The results will be added to this folder by a later commit. With the three points the note no
-longer fits in one page.
+(commit `65b65ed`) was pushed before the run: at that commit no checkpoint had been loaded and no inference had been
+run; only the cards, the stored dev scores and the file hashes of the parent run had been read, to measure what the
+tolerances rest on (`NOTE.md`, section 4), and `check-inputs` (no TensorFlow, no model) had been run on the private
+inputs (`test_logs/check_inputs_bnrecal.txt`). With the three points the note no longer fits in one page.
+
+Run `20261114-BNRECAL-a10a082`, from the clean commit `a10a082` of the working repository, started on 14 November 2026
+at 14:18:46 CET, after the push of `65b65ed`, and finished at 14:47:54 CET: status PASS, 36 of 36 models, wall time
+1748.6 s (29.1 minutes; estimate about 32, upper estimate about 140, cap 240). Baseline within every tolerance for 36
+of 36 models; all ten degenerate checkpoints meet the recovery criterion on the dev after the re-estimation, the 25
+controls keep it, 17 controls show at least one worsening indicator, every one listed. A recovery shows the effect of
+this recalibration on the examined checkpoints, not a single cause of the saturation. The full reading, with every
+model, the baseline table, the per-layer change of the statistics, the time and the limits, is in `REPORT.md`.
 
 The control re-estimates the statistics of the five BatchNormalization layers of each patience-4 checkpoint on
 the fitting set of its arm and fold (inference mode, layer by layer) and evaluates the dev before and after, with the
@@ -63,7 +70,19 @@ not read: their SHA-256 are copied from the public aggregate.
 | `livenesslab/scripts/nuaa_session_ablation_run.py`, `nuaa_folds_run.py`, `m2_writers.py`, `path_guard.py`, `package_rules.py`, `train_cnn.py`, `check_nuaa_session_ablation_run.py`, `check_nuaa_folds_run.py`; `livenesslab/delivery/sessionablationrun/nuaa_session_ablation_run.json`, `livenesslab/delivery/foldsrun/nuaa_folds_run.json` | the code and the configurations of the earlier runs that the runner and its suite import (loaders, scorer, synthetic world): byte for byte the files of `research/nuaa-constant-lr-control/livenesslab` |
 | `test_logs/check_nuaa_bn_recalibration.txt`, `test_logs/check_nuaa_bn_recalibration_mutations.txt` | output of the suite and of the mutation check on macOS (Python 3.11, TensorFlow 2.15.0, NumPy 1.26.4), with the SHA-256 of the files tested |
 | `test_logs/check_inputs_bnrecal.txt` | output of `check-inputs` on the private inputs, before the run |
+| `REPORT.md` | the report of run `20261114-BNRECAL-a10a082`: what was done, the baseline against each tolerance, the checks of the implementation, the primary outcome with the ten before and after, the 25 controls with every worsening, all 36 models before and after, the model reported apart, the 2×2 table, the fitting before, the per-layer change of the statistics, the time against the estimate, the limits |
+| `recalibration/results.csv` | the public outputs of the run, byte for byte: one row per model (36), dev and fitting values before and after, criterion, 2×2 cell, worsening indicators, per-layer minimum, median and maximum over the channels of `var_ratio` and `mean_shift`, seconds per phase |
+| `recalibration/baseline.csv` | the baseline of the 36 models against each tolerance (value, reference, difference, tolerance, pass) |
+| `recalibration/aggregate.json`, `recalibration/aggregate.md` | the reading rule of the configuration applied mechanically (primary, controls, model apart, 2×2, every worsening with its size, limits, all models, time) |
+| `recalibration/run_record.json` | run id, commit, SHA-256 of configuration, note and code, tolerances with their sources, estimator, evaluation, checks of the inputs, final checks, timings, environment, what was read of the test |
+| `recalibration/SHA256SUMS` | SHA-256 of the five other files of `recalibration/`, as written by the run |
+| `run/status.json` | final status of the run (PASS, wall time, models completed, SHA-256 of the public and restricted `SHA256SUMS` and of the log) |
+| `run/run.log.txt` | log of the run (`run.log` renamed, same bytes) |
 | `SHA256SUMS` | SHA-256 of every other file of this folder |
+
+The restricted outputs of the run (per-frame dev and fitting scores before and after, and the per-channel statistics
+of each model, with a copy of the run record and their checksums) stay in the run folder `20261114-BNRECAL-a10a082`,
+not in the repository; they go to the shared project folder on Drive with the whole run folder.
 
 ## Sources (all in this branch)
 
