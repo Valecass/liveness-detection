@@ -1,26 +1,41 @@
-# NUAA: one control on the early dev saturation (proposal, no training, no inference)
+# NUAA: one control on the early dev saturation (BatchNormalization statistics re-estimated; no training, no test)
 
 Written on the coordinator's request of 12 November 2026 (C2 card): a brief note, at most one page, choosing ONE control
 on the early dev saturation of the LivenessNet trainings (dev accuracy 0.5 in the first epochs with confident logits of
 one class, while the train accuracy is above 0.9 from epoch 1), present in the three accepted runs on the same 36
 models (patience 4 `20261106-SESSABLRUN-d999458`, patience 12 with ReduceLROnPlateau `20261109-SESSABLRUN-6a50265`,
 patience 12 at a constant learning rate `20261111-SESSABLRUN-8568ffa`). Starting from the code and the recorded curves,
-`NOTE.md` states the hypothesis, the one modification, what stays fixed, the reading rule and the expected cost. Only
-the proposal: the control is to be agreed before any inference, without using the test.
+`NOTE.md` states the hypothesis, the one modification, what stays fixed, the reading rule and the expected cost.
 
-The proposed control re-estimates the statistics of the five BatchNormalization layers of each patience-4 checkpoint on
+**Status.** Proposal delivered on 12 November 2026 (commit `dd7a893`). Approved by the coordinator on 13 November 2026
+on the 36 existing checkpoints, without new training and without reading the test, with three points to specify in this
+pull request before the run. The revision of 14 November 2026 adds them to `NOTE.md`: the exact estimator (section 2),
+the baseline tolerances with their sources and the stop rule (section 4), conclusions limited in both directions, 2×2
+table included (section 4). It also adds the runner, its configuration, its tests and its mutation check. This revision
+is pushed before the run: at this commit no checkpoint has been loaded and no inference has been run; only the cards,
+the stored dev scores and the file hashes of the parent run were read, to measure what the tolerances rest on
+(`NOTE.md`, section 4), and `check-inputs` (no TensorFlow, no model) was run on the private inputs
+(`test_logs/check_inputs_bnrecal.txt`). The results will be added to this folder by a later commit. With the three points the note no
+longer fits in one page.
+
+The control re-estimates the statistics of the five BatchNormalization layers of each patience-4 checkpoint on
 the fitting set of its arm and fold (inference mode, layer by layer) and evaluates the dev before and after, with the
 recovery criterion already in use as reading rule (hypotheses 1 and 2 of `research/nuaa-degenerate-trainings/NOTE.md`
-against 4 and 7), after a validity condition (checkpoint SHA-256 and the recorded dev values reproduced). As a secondary
+against 4 and 7), after a baseline on all 36 checkpoints with their original statistics (checkpoint SHA-256; stored dev
+scores within 1e-5 with no decision at 0.5 changed; val_loss within 1e-3 absolute; the same number of correct dev
+frames; softmax of the logits within 1e-4): if any check fails for one model the run stops before any recalibration and
+only documents the discrepancy. As a secondary
 reading that does not decide, it also measures accuracy and loss on the fitting set in inference mode before and after
 the recalibration (one more pass each), read with the same criterion in a 2×2 table (fitting before × dev after). Per
 model: five recalibration passes and two evaluation passes over the fitting set, two passes over the dev (10,600 frame
 passes for B and A*, 7,338 for B'); derived cost about 32 minutes for the 36 models, upper estimate about 140 minutes,
-the reading of the fitting frames not priced.
+the reading of the fitting frames not priced. As implemented the dev is passed once more (the parent's scorer in the
+baseline) and the run has a cap of 240 minutes.
 
-## What it does not do
+## The note tables: what their script does not do
 
-No training, no inference, no model loaded, no image read, no test score or test metric read. The script reads only
+`nuaa_saturation_note.py` does no training and no inference, loads no model, reads no image and no test score or test
+metric. It reads only
 public tables already merged in `research/pad-2026` and the public `src/architectures.py`; of the public aggregate of the
 patience-4 run it uses only the `training` block (restored epoch, sizes, `weights_sha256`; the file is read and hashed
 whole), and of the public `comparison.csv` of the patience verification only the `parent_*` columns (dev AUROC at the
@@ -32,7 +47,7 @@ not read: their SHA-256 are copied from the public aggregate.
 
 | path | what it is |
 |---|---|
-| `NOTE.md` | the one-page note: hypothesis (facts for and against), the one modification, what stays fixed, reading rule with each outcome's conclusion written in advance (validity first; primary on the dev; secondary, not deciding: the 25 control models, the non-degenerate model outside the criterion, dev AUROC, fitting accuracy and loss in inference mode with the reading of the 2×2 table) and the expected outcome (not observed), expected cost, limits, what is not proposed, pre-commitment |
+| `NOTE.md` | the note, revised on 14 November 2026: hypothesis (facts for and against), the one modification with the estimator (global per-channel moments, layer by layer, inference mode, counts, variance, the only tensors changed, consistency check), what stays fixed, reading rule (baseline tolerances with their sources and the stop rule; each outcome's conclusion written in advance and limited in both directions; secondary, not deciding: the 25 control models, the non-degenerate model outside the criterion, dev AUROC, fitting accuracy and loss in inference mode in a descriptive 2×2 table) and the expected outcome (not observed), expected cost with the passes as implemented, content of the report, limits, what is not proposed, pre-commitment |
 | `tables/checkpoints.csv` | the 36 checkpoints of the patience-4 run, one row per model: arm, fold, seed, fitting frames, steps per epoch, epochs run, restored epoch, dev accuracy and val_loss at the checkpoint, degenerate, train accuracy at epoch 1 and at the restored epoch, dev accuracy at the restored epoch, epochs at 0.5, BatchNormalization residual 0.99^(steps) after epoch 1 and 0.99^(steps × restored epoch), first recovery epoch (`NA` if none), at the recovery criterion at the checkpoint, dev AUROC at the checkpoint, `weights_sha256` |
 | `tables/facts.json`, `tables/facts.md` | the facts cited in the note: the ten degenerate models and their restored epochs, train accuracy at epoch 1 (median and range, the ten and the 26), dev saturation counts, dev AUROC at the checkpoint, BatchNormalization residuals per arm, the five BatchNormalization and three Dropout layers with positions, fitting and dev sizes, epochs at 0.5 of the ten in the two 12-epoch runs, the dev subjects per fold, the non-degenerate model outside the recovery criterion (dev AUROC included), the cost estimate with its inputs (per model five recalibration passes and two evaluation passes over the fitting set, two dev passes; the slowest per-epoch mean of each arm = maximum over its models of `train_seconds / epochs_run`) |
 | `tables/layers.md` | the layer order of LivenessNet parsed from `src/architectures.py`, BatchNormalization and Dropout marked |
@@ -41,6 +56,13 @@ not read: their SHA-256 are copied from the public aggregate.
 | `livenesslab/scripts/check_nuaa_saturation_note.py` | 83 tests: 80 on a synthetic tree written in a temporary folder (parsers, short and long CSV rows, the residual formula, the layer parsing with the total of 22 layers and the `name=` check, every count against hand-computed values, the val_loss branch of the recovery criterion, a restored epoch 3 at dev accuracy 0.5 (not degenerate), 22 error paths, outputs, `build`/`check`/`check --note` with every fragment of the note list required, `--help`) and 3 end-to-end tests on the real public files when present |
 | `test_logs/check_nuaa_saturation_note.txt` | output of the tests and of `check --note` on macOS |
 | `test_logs/linux.txt` | the same tests, `check --note` and the checksum verification in a Linux container (python:3.12) |
+| `livenesslab/scripts/nuaa_bn_recalibration.py` | the runner of the control (`check-inputs`, `run`); see "The control runner" below |
+| `livenesslab/delivery/bnrecal/nuaa_bn_recalibration.json` | its configuration, a closed set: estimator, tolerances with their sources, stop rule, recovery criterion, groups (the ten, the 25 controls, the model apart), the text of each case of the reading rule (causal wording is refused by the loader), outputs, time estimates and cap, what is read of the test, `note_sha256` (SHA-256 of `NOTE.md`; `note_path` is the path of the same file in the working repository) |
+| `livenesslab/scripts/check_nuaa_bn_recalibration.py` | 63 tests on a synthetic world written in a temporary folder (tiny Keras models with the LivenessNet layer sequence, 8×8 frames): the moments against values computed in one batch, the last short batch, the spatial counts, the layer order, the tensors changed and unchanged, the baseline checks and the stop rule, the outcomes, the reading rule, the outputs, the delivered configuration; no real checkpoint or frame |
+| `livenesslab/scripts/check_nuaa_bn_recalibration_mutations.py` | 90 mutants of the runner, one at a time, each to be detected by the suite, plus one control mutant and 5 declared redundant that must survive |
+| `livenesslab/scripts/nuaa_session_ablation_run.py`, `nuaa_folds_run.py`, `m2_writers.py`, `path_guard.py`, `package_rules.py`, `train_cnn.py`, `check_nuaa_session_ablation_run.py`, `check_nuaa_folds_run.py`; `livenesslab/delivery/sessionablationrun/nuaa_session_ablation_run.json`, `livenesslab/delivery/foldsrun/nuaa_folds_run.json` | the code and the configurations of the earlier runs that the runner and its suite import (loaders, scorer, synthetic world): byte for byte the files of `research/nuaa-constant-lr-control/livenesslab` |
+| `test_logs/check_nuaa_bn_recalibration.txt`, `test_logs/check_nuaa_bn_recalibration_mutations.txt` | output of the suite and of the mutation check on macOS (Python 3.11, TensorFlow 2.15.0, NumPy 1.26.4), with the SHA-256 of the files tested |
+| `test_logs/check_inputs_bnrecal.txt` | output of `check-inputs` on the private inputs, before the run |
 | `SHA256SUMS` | SHA-256 of every other file of this folder |
 
 ## Sources (all in this branch)
@@ -77,7 +99,56 @@ patience-4 run; `seconds_per_epoch` equals `train_seconds / epochs_run`; every C
 LivenessNet has 22 layers, each with `name=`, of which 5 BatchNormalization and 3 Dropout, and no `momentum` argument;
 training and scoring device CPU.
 
-## Commands (from the repository root)
+## The control runner
+
+`livenesslab/` mirrors the working repository (`scripts/`, `delivery/`); the runner is executed there, where the
+private inputs are (the 36 `.keras` files, the frames, the cards and the per-frame dev scores of the parent run
+`20261106-SESSABLRUN-d999458`). In one process, in this order:
+
+0. `check-inputs`: the configuration (a closed set; `note_sha256` must equal the SHA-256 of `NOTE.md`), the parent run
+   and its 36 models against their SHA256SUMS, the fitting and dev keys of each model against its card, the groups
+   derived from the cards against the configuration. Nothing is written, TensorFlow is not imported.
+1. baseline, on all 36 models before any recalibration, with the tolerances of the configuration; if any check fails
+   for one model: `public/baseline.csv` with the discrepancies, status `BASELINE_FAILED`, nothing else computed.
+2. recalibration, model by model, on an in-memory copy (no `.keras` file is written): the five layers in network order,
+   global per-channel moments in float64 over the whole fitting set, only `moving_mean` and `moving_variance` assigned;
+   every tensor compared byte for byte with the original; consistency pass; dev and fitting evaluated before and after
+   with the same evaluator.
+3. aggregate: `results.csv` (all 36 models, every worsening flagged), `baseline.csv`, `aggregate.json`, `aggregate.md`
+   (the reading rule of the configuration applied mechanically, every worsening with its size, the times against the
+   estimate), `run_record.json`, `SHA256SUMS`.
+
+Outcomes: `PASS`, `BASELINE_FAILED`, `INCOMPLETE` (cap or voluntary stop: no reading), `FAIL` (error: every output
+removed). The run refuses a working tree that is not clean and records the SHA-256 of the code, of the configuration and
+of the note. Device: CPU (the GPU is hidden before any model is loaded).
+
+What is read of the test: the fold schema (the test role of our folds) is never opened and no `<model>_test_scores.csv`
+is opened; the M2 manifests `official_test` and `cnn_test` (NUAA's official image lists, not the test role of our
+folds) are read only to index the cache; as in the parent run the frame files (cache and extracted frames) are hashed
+and loaded whole, but only fitting and dev frames are assembled; the public aggregate of the parent run, which holds
+test metrics, is read only as bytes for its SHA-256 and never parsed; no public file of the folds run is opened; no test
+frame is assembled or evaluated and no test score or metric is read, computed or written.
+
+Commands of the runner and of its checks (from `livenesslab/`, in an environment with TensorFlow 2.15.0 and NumPy; the
+first two need the private inputs):
+
+```bash
+python -I -B scripts/nuaa_bn_recalibration.py check-inputs
+```
+
+```bash
+python -I -B scripts/nuaa_bn_recalibration.py run --i-am-authorized --config delivery/bnrecal/nuaa_bn_recalibration.json
+```
+
+```bash
+python -I -B scripts/check_nuaa_bn_recalibration.py
+```
+
+```bash
+python -I -B scripts/check_nuaa_bn_recalibration_mutations.py
+```
+
+## Commands of the note tables (from the repository root)
 
 Rebuild the tables:
 
@@ -105,5 +176,5 @@ Checksums of this folder:
 cd research/nuaa-saturation-control && shasum -a 256 -c SHA256SUMS
 ```
 
-Dependencies: Python 3.11 or later, standard library only (tested on macOS, `test_logs/check_nuaa_saturation_note.txt`, and in a Linux container, `test_logs/linux.txt`).
+Dependencies of the note tables: Python 3.11 or later, standard library only (tested on macOS, `test_logs/check_nuaa_saturation_note.txt`, and in a Linux container, `test_logs/linux.txt`).
 `build` writes UTF-8 with LF line endings and JSON with sorted keys; `check` compares bytes.

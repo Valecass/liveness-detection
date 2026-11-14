@@ -1,4 +1,4 @@
-# macOS, Python 3.14.7, 2026-11-12 16:44 CET; run from the repository root, standard library only
+# macOS, Python 3.14.7, 2026-11-14 13:21 CET; run from the repository root, standard library only
 $ python3 -I -B research/nuaa-saturation-control/livenesslab/scripts/check_nuaa_saturation_note.py -v
 test_bn_and_dropout_positions (__main__.TestArchitecture.test_bn_and_dropout_positions) ... ok
 test_first_bn_after_dropout (__main__.TestArchitecture.test_first_bn_after_dropout) ... ok
@@ -86,7 +86,7 @@ test_no_subject_identifier_in_outputs (__main__.TestRealPublicFiles.test_no_subj
 test_real_facts (__main__.TestRealPublicFiles.test_real_facts) ... ok
 
 ----------------------------------------------------------------------
-Ran 83 tests in 0.661s
+Ran 83 tests in 0.691s
 
 OK
 
